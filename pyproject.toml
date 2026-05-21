@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "loom"
+version = "0.1.0"
+description = "Privacy first coding agent CLI powered by llama.cpp"
+requires-python = ">=3.10"
+dependencies = [
+    "openai>=1.0.0",
+    "rich>=13.0.0",
+    "pyyaml>=6.0",
+    "httpx>=0.23.0",
+    "prompt-toolkit>=3.0.0",
+    "python-jose[cryptography]>=3.3.0",
+    "passlib[argon2]>=1.7.4",
+]
+
+[project.scripts]
+loom = "src.main:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"

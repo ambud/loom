@@ -1,0 +1,41 @@
+# ~/.loom.yaml — example configuration
+
+# llama.cpp server URL (default: http://localhost:8080/v1)
+base_url: "http://localhost:8080/v1"
+
+# Model name as registered in llama.cpp server (default: "Qwen36-27")
+model: "Qwen36-27"
+
+# Max tokens per completion (default: 250000)
+max_tokens: 250000
+
+# Sampling temperature: 0.0 = deterministic, 0.8 = creative (default: 0.0)
+temperature: 0.0
+
+# Path to system prompt markdown file (optional override)
+# system_prompt_file: "~/.loom/system.md"
+
+# Maximum tool-call rounds per turn before forcing a stop (default: 25)
+max_tool_rounds: 25
+
+# Context window size (default: 250000)
+context_window: 250000
+
+# The profile to use for the /review command (default: "reviewer")
+review_profile: "reviewer"
+
+# Named model profiles (each inherits from top-level, overrides as needed)
+models:
+  coder:
+    model: "Qwen36-27"
+    temperature: 0.0
+  reviewer:
+    model: "Deepseek-V4-Pro"
+    base_url: "http://localhost:8081/v1"
+    temperature: 0.1
+
+# Model to URL mapping — automatically sets base_url when a specific model is selected
+model_mapping:
+  "Qwen36-27": "http://localhost:8080/v1"
+  "Deepseek-V4-Pro": "http://localhost:8081/v1"
+  "Llama-3.1-8B": "http://localhost:8082/v1"
