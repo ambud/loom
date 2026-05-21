@@ -20,6 +20,7 @@ class TokenTracker:
         self.invalidate_ui_fn = invalidate_ui_fn
         self.session_input = 0
         self.session_output = 0
+        self.current_tokens = 0
         
         totals = self._load_totals()
         self.total_input = totals.get("input", 0)
@@ -59,12 +60,13 @@ class TokenTracker:
                 "input_tokens": self.session_input,
                 "output_tokens": self.session_output,
                 "total_tokens": self.session_total,
+                "current_tokens": self.current_tokens,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
             metrics_path.write_text(json.dumps(data, indent=2))
 
     def add(self, n: int, is_output: bool = False):
-        """Add tokens to the current tracking. Defaults to input tokens."""
+        """Add tokens to the cumulative session and global tracking."""
         if is_output:
             self.session_output += n
             self.total_output += n
@@ -76,14 +78,20 @@ class TokenTracker:
         if self.invalidate_ui_fn:
             self.invalidate_ui_fn()
 
+    def update_current(self, n: int):
+        """Set the current active context size (usually after compaction)."""
+        self.current_tokens = n
+        if self.invalidate_ui_fn:
+            self.invalidate_ui_fn()
+
     def flush(self):
         self._save_totals()
         self._save_session_metrics()
 
     def get_stats_string(self) -> str:
-        pct = (self.session_total / self.context_window * 100) if self.context_window else 0
+        pct = (self.current_tokens / self.context_window * 100) if self.context_window else 0
         return (
-            f"tokens:{self.session_total:,}/{self.context_window:,} "
+            f"tokens:{self.current_tokens:,}/{self.context_window:,} "
             f"({pct:.1f}%)"
         )
 

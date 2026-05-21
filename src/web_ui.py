@@ -225,8 +225,7 @@ class WebSession:
                         await self.send_output(self.bg_mgr.status_panel() + "\r\n")
                     return
                 if cmd == "compact":
-                    await compact_messages(self.client, self.messages, self.cfg, force=True)
-                    self.tracker.session_input = await _total_message_tokens(self.messages, self.cfg)
+                    await compact_messages(self.client, self.messages, self.cfg, force=True, tracker=self.tracker)
                     await self.send_output("History compacted.\r\n")
                     return
                 

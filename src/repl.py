@@ -461,8 +461,7 @@ async def interactive_loop(
                     pt_print(f"Global:  {tracker.total_input:,} input | {tracker.total_output:,} output | {tracker.total_tokens:,} total", "dim")
                     continue
                 if cmd == "compact":
-                    await compact_messages(active_client, messages, cfg, force=True)
-                    tracker.session_tokens = await _total_message_tokens(messages, cfg)
+                    await compact_messages(active_client, messages, cfg, force=True, tracker=tracker)
                     continue
 
                 if cmd == "plan":
@@ -605,7 +604,8 @@ async def interactive_loop(
             except Exception as e:
                 pt_print(f"Agent error: {e}", "red")
             finally:
-                tracker.session_input = await _total_message_tokens(messages, cfg)
+                current_total = await _total_message_tokens(messages, cfg)
+                tracker.update_current(current_total)
                 invalidate_ui()
                 agent_task = None
 

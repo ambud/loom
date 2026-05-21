@@ -22,11 +22,23 @@ EXEC_TOOLS = {"bash", "run_bg"}
 
 
 async def _message_tokens(msg: dict, cfg: dict) -> int:
-    """Estimate tokens for a single message."""
+    """Estimate tokens for a single message, with caching."""
+    # Check if we already have the count for this exact content
     text = msg.get("content", "") or ""
+    tc_json = ""
     if "tool_calls" in msg:
-        text += json.dumps(msg["tool_calls"])
-    return await async_count_tokens(text, cfg)
+        tc_json = json.dumps(msg["tool_calls"])
+    
+    cache_key = f"{text}||{tc_json}"
+    if msg.get("_tokens_cache_key") == cache_key:
+        return msg.get("_tokens", 0)
+
+    count = await async_count_tokens(text + tc_json, cfg)
+    
+    # Store in message dict (private keys)
+    msg["_tokens_cache_key"] = cache_key
+    msg["_tokens"] = count
+    return count
 
 
 async def _total_message_tokens(messages: list[dict], cfg: dict, start: int = 0) -> int:
@@ -41,6 +53,7 @@ async def compact_messages(
     cfg: dict,
     *,
     force: bool = False,
+    tracker: Any = None,
 ) -> None:
     """Summarize older messages to fit within context window."""
     window = cfg.get("context_window", 250000)
@@ -75,11 +88,15 @@ async def compact_messages(
     summary_msg = {"role": "user", "content": f"{summary_prompt}\n\n{json.dumps(to_summarize)}"}
     
     try:
-        response = await client.chat.completions.create(
-            model=cfg["model"],
-            messages=[messages[0], summary_msg],
-            max_tokens=4000,
-            temperature=0.0,
+        # Add timeout to compaction call to prevent hanging the whole agent
+        response = await asyncio.wait_for(
+            client.chat.completions.create(
+                model=cfg["model"],
+                messages=[messages[0], summary_msg],
+                max_tokens=4000,
+                temperature=0.0,
+            ),
+            timeout=60.0
         )
         summary_text = response.choices[0].message.content
         
@@ -90,7 +107,11 @@ async def compact_messages(
         
         messages[:] = new_messages
         new_total = await _total_message_tokens(messages, cfg)
+        if tracker:
+            tracker.update_current(new_total)
         pt_print(f"Context compacted: {total:,} -> {new_total:,} tokens.", "dim")
+    except asyncio.TimeoutError:
+        pt_print("Compaction timed out after 60s.", "red")
     except Exception as e:
         pt_print(f"Compaction failed: {e}", "red")
 
@@ -370,11 +391,6 @@ async def run_turns(
         do_stream = cfg.get("stream_text", True)
         plan_mode = cfg.get("plan", False)
 
-        async def _ctx_info() -> str:
-            tokens = await _total_message_tokens(messages, cfg)
-            pct = tokens / window * 100 if window else 0
-            return f"{tokens:,} tokens ({pct:.1f}%)"
-
         for round_num in range(1, cfg.get("max_tool_rounds", 25) + 1):
             await asyncio.sleep(0)  # Yield for cancellation
 
@@ -389,18 +405,29 @@ async def run_turns(
                         msg["content"] += plan_instruction
                         break
 
+            # Calculate tokens once per round
+            current_total = await _total_message_tokens(messages, cfg)
+            if tracker:
+                tracker.update_current(current_total)
+            pct = current_total / window * 100 if window else 0
+            info = f"{current_total:,} tokens ({pct:.1f}%)"
+
             # Compact before each LLM call if context is getting tight
-            if await _total_message_tokens(messages, cfg) > int(window * threshold):
-                info = await _ctx_info()
+            if current_total > int(window * threshold):
                 if status:
                     status.update(f"Compacting... {info}")
                 try:
-                    await compact_messages(client, messages, cfg)
+                    await compact_messages(client, messages, cfg, tracker=tracker)
+                    # Recalculate after compaction
+                    current_total = await _total_message_tokens(messages, cfg)
+                    if tracker:
+                        tracker.update_current(current_total)
+                    pct = current_total / window * 100 if window else 0
+                    info = f"{current_total:,} tokens ({pct:.1f}%)"
                 except Exception:
                     raise
 
             try:
-                info = await _ctx_info()
                 if status:
                     status.update(f"Thinking... {info}")
 
@@ -446,8 +473,7 @@ async def run_turns(
                 if do_stream and tracker:
                     # Count input (messages list before adding current assistant response)
                     # This is a fallback if the API doesn't provide it in stream (OpenAI doesn't always)
-                    prompt_tokens = await _total_message_tokens(messages, cfg)
-                    tracker.add(prompt_tokens, is_output=False)
+                    tracker.add(current_total, is_output=False)
                     
                     if content:
                         completion_tokens = await async_count_tokens(content, cfg)
