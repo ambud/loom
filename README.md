@@ -90,7 +90,6 @@ Loom is optimized for the `llama.cpp` ecosystem. To get the best experience, use
 | Flag | Recommendation | Why? |
 |---|---|---|
 | `--ctx-size` | `262000` | Large context allows for full-codebase analysis. |
-| `--parallel` | `2`+ | Allows Loom's background tasks and main loop to run concurrently. |
 | `--flash-attn` | `on` | Dramatically improves performance on supported hardware. |
 | `--alias` | `Qwen36-27` | Provides a clean model name for Loom's configuration. |
 
