@@ -5,9 +5,10 @@ from __future__ import annotations
 import asyncio
 import os
 from .base import Tool
+from .safety import is_sensitive
+
 
 # Files that must never be committed
-_SECRETS_PATTERNS = (".env", ".key", "credentials.", "id_rsa", "token", ".secret")
 
 
 class GitStatusTool(Tool):
@@ -126,9 +127,8 @@ class GitCommitTool(Tool):
 
         # Check for secrets BEFORE staging anything
         for f in changed_files:
-            base = f.split("/")[-1].lower()
-            if any(p in base for p in _SECRETS_PATTERNS):
-                return f"Refusing to commit: '{f}' looks like a secrets file"
+            if is_sensitive(f):
+                return f"Refusing to commit: '{f}' looks like a sensitive file"
 
         if not changed_files:
             return "No changes to commit"

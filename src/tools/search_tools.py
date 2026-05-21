@@ -7,6 +7,7 @@ import fnmatch
 import os
 import re
 from .base import Tool
+from .safety import is_sensitive
 
 
 class GlobSearchTool(Tool):
@@ -28,6 +29,8 @@ class GlobSearchTool(Tool):
             ]
             for name in files:
                 rel = os.path.relpath(os.path.join(root, name), base)
+                if is_sensitive(rel):
+                    continue
                 if fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(name, pattern):
                     matches.append(rel)
 
@@ -72,6 +75,8 @@ class GrepSearchTool(Tool):
                 for name in files:
                     fp = os.path.join(root, name)
                     rel = os.path.relpath(fp, base)
+                    if is_sensitive(rel):
+                        continue
                     if glob and not fnmatch.fnmatch(name, glob):
                         continue
                     files_to_search.append(fp)

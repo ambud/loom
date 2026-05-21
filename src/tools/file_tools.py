@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 from .base import Tool
+from .safety import check_sensitive_access
 
 
 class ReadFileTool(Tool):
@@ -17,6 +18,10 @@ class ReadFileTool(Tool):
         end_line: int | None = None,
         **_,
     ) -> str:
+        err = check_sensitive_access(filepath)
+        if err:
+            return err
+
         path = os.path.expanduser(filepath)
         if not os.path.isabs(path):
             path = os.path.join(os.getcwd(), path)
@@ -79,6 +84,10 @@ class EditFileTool(Tool):
     )
 
     async def run(self, filepath: str, old_string: str, new_string: str, replace_all: bool = False, **_) -> str:
+        err = check_sensitive_access(filepath)
+        if err:
+            return err
+
         path = os.path.expanduser(filepath)
         if not os.path.isabs(path):
             path = os.path.join(os.getcwd(), path)
