@@ -345,6 +345,7 @@ async def interactive_loop(
     registry: Any,
     *,
     active_profile: str = "default",
+    session_id: str | None = None,
 ) -> None:
     """Full-featured REPL loop with concurrent input support."""
     from .agent import run_turns, compact_messages, _total_message_tokens
@@ -375,15 +376,27 @@ async def interactive_loop(
     pt_print("Type your prompt anytime. Use [tool]!cmd[/tool] for shell, [tool]/help[/tool] for more.", style="dim")
     pt_print()
 
-    logger = SessionLogger(cfg)
-    logger.log("system", system_prompt)
+    logger = SessionLogger(cfg, session_id=session_id)
+    existing_messages = logger.load_messages() if session_id else []
+    
+    if existing_messages:
+        messages = existing_messages
+        pt_print(f"Resumed session: {logger._meta.get('id')}", "green")
+        pt_print(f"Loaded {len(messages)} messages from history.\n", "dim")
+        # Ensure first message is the current system prompt if it was reloaded
+        if messages and messages[0]["role"] == "system":
+            messages[0]["content"] = system_prompt
+    else:
+        logger.log("system", system_prompt)
+        messages: list[dict] = [{"role": "system", "content": system_prompt}]
 
     # Initialize tracker with session info
     tracker.session_id = logger._meta.get("id")
     tracker.log_dir = _log_dir(cfg)
 
-    messages: list[dict] = [{"role": "system", "content": system_prompt}]
-    tracker.add(await async_count_tokens(system_prompt, cfg))
+    # Initial token count for history
+    initial_tokens = await _total_message_tokens(messages, cfg)
+    tracker.update_current(initial_tokens)
 
     session = PromptSession(
         history=FileHistory(HISTORY_FILE),

@@ -62,6 +62,7 @@ def main() -> None:
     parser.add_argument("--review-base-url", help="Base URL for /review model (overrides config/env)")
     parser.add_argument("--setup", action="store_true", help="Run interactive setup wizard")
     parser.add_argument("--skip-setup", action="store_true", help="Skip first-run setup")
+    parser.add_argument("--resume", help="Resume a previous session by ID")
     parser.add_argument("--web", action="store_true", help="Launch the Web UI server")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind the Web UI server to (default: 0.0.0.0)")
     parser.add_argument("--port", type=int, default=8000, help="Port to bind the Web UI server to (default: 8000)")
@@ -142,6 +143,7 @@ def main() -> None:
             asyncio.run(interactive_loop(
                 client, system_prompt, cfg, TOOLS, create_registry(),
                 active_profile=args.profile or "default",
+                session_id=args.resume,
             ))
         except KeyboardInterrupt:
             print("\nGoodbye.")
