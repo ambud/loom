@@ -15,6 +15,13 @@ SENSITIVE_PATTERNS = [
     "**/passwd", "**/shadow",
     # Cloud and API
     "**/.aws/credentials", "**/.gcloud/*", "**/firebase.json",
+    # Build artifacts and system-generated (Privacy and Context Safety)
+    "**/node_modules/**", "**/__pycache__/**", "**/target/**", "**/build/**", "**/dist/**",
+    "**/.venv/**", "**/venv/**", "**/env/**", "**/docs/_build/**", "**/docs/build/**",
+    "**/*.pyc", "**/*.pyo", "**/*.pyd", "**/*.o", "**/*.obj", "**/*.a", "**/*.lib",
+    "**/*.so", "**/*.dll", "**/*.dylib", "**/*.exe", "**/*.bin",
+    "**/*.html", # Often generated documentation
+    "**/*.min.js", "**/*.min.css", # Minified files
 ]
 
 def is_sensitive(filepath: str) -> bool:

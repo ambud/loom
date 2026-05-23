@@ -27,12 +27,12 @@ from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.styles import Style
 
 from .config import load_system_prompt, load_review_system_prompt, get_model_cfg, make_client
-from .llm import async_count_tokens
+from .llm import async_count_tokens, close_http_client
 from .utils import pt_print, print_panel, print_markdown, RichText, Markdown
 from .session import (
     TokenTracker, SessionLogger, BackgroundManager, 
     run_bash, run_bash_bg, _log_dir,
-    slash_help, slash_config, slash_session, run_review
+    slash_help, slash_config, slash_session, slash_sessions, run_review
 )
 
 # Strip ANSI escape codes — the user's interface can't render them
@@ -86,7 +86,7 @@ class LoomCompleter(Completer):
             commands = [
                 "/background", "/bg", "/clear", "/compact", "/config",
                 "/help", "/memory", "/model", "/plan", "/quit", "/reload", "/remember",
-                "/review", "/search", "/session", "/stats", "/system"
+                "/review", "/search", "/session", "/sessions", "/stats", "/system"
             ]
             for cmd in commands:
                 if cmd.startswith(text):
@@ -469,12 +469,17 @@ async def interactive_loop(
                 if cmd == "session":
                     slash_session(logger)
                     continue
+                if cmd == "sessions":
+                    slash_sessions(cfg)
+                    continue
                 if cmd == "stats":
                     pt_print(f"Session: {tracker.session_input:,} input | {tracker.session_output:,} output | {tracker.session_total:,} total", "dim")
                     pt_print(f"Global:  {tracker.total_input:,} input | {tracker.total_output:,} output | {tracker.total_tokens:,} total", "dim")
                     continue
                 if cmd == "compact":
-                    await compact_messages(active_client, messages, cfg, force=True, tracker=tracker)
+                    status.update("Compacting...")
+                    with status:
+                        await compact_messages(active_client, messages, cfg, force=True, tracker=tracker, status=status)
                     continue
 
                 if cmd == "plan":
@@ -631,6 +636,7 @@ async def interactive_loop(
         tracker.flush()
         bg_mgr.save()
         logger.close()
+        await close_http_client()
 
 
 async def _bg_status_watcher(bg_mgr: BackgroundManager, done: asyncio.Event):

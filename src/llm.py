@@ -8,6 +8,21 @@ from typing import Any
 from .utils import pt_print
 
 _TOKENIZE_AVAILABLE = True
+_HTTP_CLIENT: httpx.AsyncClient | None = None
+
+
+async def get_http_client() -> httpx.AsyncClient:
+    global _HTTP_CLIENT
+    if _HTTP_CLIENT is None or _HTTP_CLIENT.is_closed:
+        _HTTP_CLIENT = httpx.AsyncClient(timeout=10.0)
+    return _HTTP_CLIENT
+
+
+async def close_http_client():
+    global _HTTP_CLIENT
+    if _HTTP_CLIENT is not None:
+        await _HTTP_CLIENT.aclose()
+        _HTTP_CLIENT = None
 
 
 async def async_count_tokens(text: str, cfg: dict) -> int:
@@ -26,14 +41,14 @@ async def async_count_tokens(text: str, cfg: dict) -> int:
         url = f"{root_url}/tokenize"
 
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.post(url, json={"content": text}, timeout=2.0)
-                if resp.status_code == 200:
-                    data = resp.json()
-                    # llama.cpp returns {"tokens": [id1, id2, ...]}
-                    return len(data.get("tokens", []))
-                else:
-                    _TOKENIZE_AVAILABLE = False
+            client = await get_http_client()
+            resp = await client.post(url, json={"content": text}, timeout=5.0)
+            if resp.status_code == 200:
+                data = resp.json()
+                # llama.cpp returns {"tokens": [id1, id2, ...]}
+                return len(data.get("tokens", []))
+            else:
+                _TOKENIZE_AVAILABLE = False
         except Exception:
             _TOKENIZE_AVAILABLE = False
 
@@ -275,6 +290,68 @@ TOOLS: list[dict] = [
                     "rationale": {"type": "string", "description": "Technical rationale for this approach."},
                 },
                 "required": ["steps"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "complete_task",
+            "description": "Signal that the task is fully completed. You MUST provide a summary of what was accomplished and how it was verified. This is the only way to officially finish a task.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string", "description": "Comprehensive summary of work done."},
+                    "verification": {"type": "string", "description": "Description of how the work was verified (e.g. which tests were run)."},
+                },
+                "required": ["summary", "verification"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "fail_task",
+            "description": "Formally signal that you cannot complete the task. Use this when you hit a dead end, lack necessary information, or encounter an unrecoverable error. You must provide a clear reason and what you tried.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "reason": {"type": "string", "description": "Detailed explanation of why the task failed."},
+                    "attempts": {"type": "string", "description": "Summary of what was attempted before giving up."},
+                },
+                "required": ["reason", "attempts"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "apply_diff",
+            "description": "Apply a unified diff (patch) to a file. This is more robust than edit_file for complex changes.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filepath": {"type": "string", "description": "The path to the file to patch."},
+                    "diff": {"type": "string", "description": "The unified diff content to apply."},
+                },
+                "required": ["filepath", "diff"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "replace_lines",
+            "description": "Replace a specific range of lines in a file. Lines are 1-indexed.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "filepath": {"type": "string", "description": "The path to the file."},
+                    "start_line": {"type": "integer", "description": "The starting line number (inclusive)."},
+                    "end_line": {"type": "integer", "description": "The ending line number (inclusive)."},
+                    "new_content": {"type": "string", "description": "The new content to put in place of the lines."},
+                },
+                "required": ["filepath", "start_line", "end_line", "new_content"],
             },
         },
     },

@@ -356,6 +356,38 @@ async def run_review(
             "content": f"[SYSTEM] Code Review Findings:\n\n{findings}\n\nReview complete. Please address any critical issues or suggestions."
         })
 
+def list_sessions(cfg: dict) -> list[dict]:
+    """Return a list of available session metadata."""
+    d = _log_dir(cfg)
+    sessions = []
+    for p in d.glob("*.jsonl"):
+        sid = p.stem
+        try:
+            with open(p, "r", encoding="utf-8") as f:
+                first_line = f.readline()
+                if not first_line:
+                    continue
+                meta = json.loads(first_line)
+                
+                # Try to find the last user message to show context
+                last_user_prompt = ""
+                # We can't easily read backwards in a JSONL without reading all,
+                # but we can peek at the end of the file or just store it in meta.
+                # For now, let's just use the file mtime for sorting.
+                sessions.append({
+                    "id": sid,
+                    "created": meta.get("created", "unknown"),
+                    "mtime": p.stat().st_mtime,
+                    "path": str(p)
+                })
+        except (json.JSONDecodeError, OSError):
+            continue
+            
+    # Sort by mtime descending (newest first)
+    sessions.sort(key=lambda x: x["mtime"], reverse=True)
+    return sessions
+
+
 def slash_help() -> None:
     help_text = (
         "**Conversation**\n"
@@ -377,6 +409,7 @@ def slash_help() -> None:
         "- /model: Switch profile\n"
         "- /config: Show settings\n"
         "- /session: Show session info\n"
+        "- /sessions: List previous sessions\n"
         "- /quit: Exit REPL"
     )
     pt_print()
@@ -402,4 +435,23 @@ def slash_session(logger: SessionLogger) -> None:
     
     pt_print()
     print_panel(Markdown(info), title="Session", style="info")
+    pt_print()
+
+
+def slash_sessions(cfg: dict) -> None:
+    sessions = list_sessions(cfg)
+    if not sessions:
+        pt_print("No previous sessions found.", "dim")
+        return
+    
+    lines = []
+    for s in sessions[:10]: # Show last 10
+        lines.append(f"- **{s['id']}** ({s['created']})")
+    
+    if len(sessions) > 10:
+        lines.append(f"\n... and {len(sessions)-10} more.")
+    
+    pt_print()
+    print_panel(Markdown("\n".join(lines)), title="Recent Sessions", style="info")
+    pt_print("Use [tool]loom --resume ID[/tool] to continue a session.", "dim")
     pt_print()

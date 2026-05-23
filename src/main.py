@@ -130,11 +130,22 @@ def main() -> None:
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": args.prompt},
         ]
+        from .llm import close_http_client
         try:
             asyncio.run(run_turns(client, messages, TOOLS, create_registry(), cfg))
         except KeyboardInterrupt:
             print("\nInterrupted.")
             sys.exit(130)
+        finally:
+            # We need a new loop or use the existing one to close the client
+            try:
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    loop.create_task(close_http_client())
+                else:
+                    loop.run_until_complete(close_http_client())
+            except Exception:
+                pass
     else:
         # Interactive REPL with readline history, slash commands, session logging
         from .repl import interactive_loop

@@ -14,18 +14,16 @@ class GlobSearchTool(Tool):
     name = "glob_search"
     description = "Find files matching a glob pattern (e.g. '**/*.py')."
 
-    async def run(self, pattern: str, path: str = ".", **_) -> str:
-        base = os.path.expanduser(path)
-        if not os.path.isabs(base):
-            base = os.path.join(os.getcwd(), base)
-
+    def _do_search(self, pattern: str, base: str) -> list[str]:
         matches: list[str] = []
         for root, dirs, files in os.walk(base):
             # Skip hidden dirs and common non-source dirs
             dirs[:] = [
                 d
                 for d in dirs
-                if not d.startswith(".") and d not in ("node_modules", "__pycache__")
+                if not d.startswith(".") and d not in (
+                    "node_modules", "__pycache__", "target", "build", "dist", "venv", ".venv", "env"
+                )
             ]
             for name in files:
                 rel = os.path.relpath(os.path.join(root, name), base)
@@ -33,6 +31,14 @@ class GlobSearchTool(Tool):
                     continue
                 if fnmatch.fnmatch(rel, pattern) or fnmatch.fnmatch(name, pattern):
                     matches.append(rel)
+        return matches
+
+    async def run(self, pattern: str, path: str = ".", **_) -> str:
+        base = os.path.expanduser(path)
+        if not os.path.isabs(base):
+            base = os.path.join(os.getcwd(), base)
+
+        matches = await asyncio.to_thread(self._do_search, pattern, base)
 
         matches.sort()
         if not matches:
@@ -45,20 +51,7 @@ class GrepSearchTool(Tool):
     name = "grep_search"
     description = "Search file contents with regex. Returns matching lines."
 
-    async def run(
-        self,
-        pattern: str,
-        path: str = ".",
-        glob: str | None = None,
-        context: int = 0,
-        **_,
-    ) -> str:
-        base = os.path.expanduser(path)
-        if not os.path.isabs(base):
-            base = os.path.join(os.getcwd(), base)
-
-        regex = re.compile(pattern)
-
+    def _do_grep(self, regex: re.Pattern, base: str, glob: str | None, context: int) -> tuple[list[str], int]:
         matches: list[str] = []
         total = 0
 
@@ -70,7 +63,9 @@ class GrepSearchTool(Tool):
                 dirs[:] = [
                     d
                     for d in dirs
-                    if not d.startswith(".") and d not in ("node_modules", "__pycache__")
+                    if not d.startswith(".") and d not in (
+                        "node_modules", "__pycache__", "target", "build", "dist", "venv", ".venv", "env"
+                    )
                 ]
                 for name in files:
                     fp = os.path.join(root, name)
@@ -99,6 +94,22 @@ class GrepSearchTool(Tool):
                     if context > 0:
                         matches.append("-----\n")
                     total += 1
+        return matches, total
+
+    async def run(
+        self,
+        pattern: str,
+        path: str = ".",
+        glob: str | None = None,
+        context: int = 0,
+        **_,
+    ) -> str:
+        base = os.path.expanduser(path)
+        if not os.path.isabs(base):
+            base = os.path.join(os.getcwd(), base)
+
+        regex = re.compile(pattern)
+        matches, total = await asyncio.to_thread(self._do_grep, regex, base, glob, context)
 
         if not matches:
             return f"No matches for '{pattern}' in {path}"

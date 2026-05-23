@@ -18,12 +18,13 @@ async def test_message_tokens_caching():
         assert count1 == 5
         assert mock_count.call_count == 1
         assert msg["_tokens"] == 5
-        assert "_tokens_cache_key" in msg
-        
+        assert "_tokens_sig" in msg
+
         # Second call should use cache
         count2 = await _message_tokens(msg, cfg)
         assert count2 == 5
-        assert mock_count.call_count == 1  # Still 1
+        assert mock_count.call_count == 1
+  # Still 1
 
 @pytest.mark.asyncio
 async def test_message_tokens_cache_invalidation():
@@ -88,7 +89,7 @@ async def test_compact_messages_logic():
     # 2. Second call inside compact_messages (after compaction): 200
     with patch("src.agent._total_message_tokens", side_effect=[600, 200]):
         from src.agent import compact_messages
-        await compact_messages(mock_client, messages, cfg, force=True, tracker=tracker)
+        await compact_messages(mock_client, messages, cfg, force=True, tracker=tracker, status=None)
         
         # keep_messages = 3 (system + last turn). 
         # summarize_end = 6 - 3 = 3.

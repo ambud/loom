@@ -17,7 +17,7 @@ DEFAULTS = {
     "max_tokens": 0,
     "temperature": 0.0,
     "system_prompt_file": str(Path(__file__).resolve().parent.parent / "system.md"),
-    "max_tool_rounds": 25,
+    "max_tool_rounds": 500,
     "approval_mode": "yolo",
     "plan": False,
     "stream_text": True,
@@ -35,6 +35,7 @@ DEFAULTS = {
     "secret_key": "loom-default-secret-change-me",
     "workspace_root": ".",
     "allow_shell_commands": True,
+    "post_action_check": "",  # Command to run after any code change (e.g. "pytest")
 }
 
 CONFIG_PATH = Path(os.environ.get("AGENT_CONFIG", str(Path.home() / ".loom" / "config.yaml")))

@@ -71,6 +71,19 @@ def _to_web_safe(text: str) -> str:
         return text
     return text.replace("\r\n", "\n").replace("\n", "\r\n")
 
+def stream_print(text: str) -> None:
+    """Efficiently stream text directly to stdout."""
+    if not text:
+        return
+        
+    redirect = _print_redirect_cv.get()
+    if redirect:
+        redirect(_to_web_safe(text))
+    else:
+        sys.stdout.write(text)
+        sys.stdout.flush()
+
+
 def pt_print(text: Any = "", style: str = "", markup: bool = True, highlight: bool = False, end: str = "\n") -> None:
     """The primary printing function for Loom. Handles CLI (Rich/Live) and Web UI (Redirects)."""
     redirect = _print_redirect_cv.get()
